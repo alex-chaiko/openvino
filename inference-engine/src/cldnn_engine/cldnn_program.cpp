@@ -702,7 +702,7 @@ cldnn::primitive_id Program::CreatePrimitiveFromBlob(cldnn::topology& topology,
     if (pBlob == nullptr) {
         THROW_CLDNN_EXCEPTION("Missing blob data: " << primID);
     }
-
+    std::cout << "CreatePrimitiveFromBlob ----+" << std::endl;
     auto data = static_cast<const char *>(pBlob->buffer()) + blobByteOffset;
 
     auto bufIter = blobMemCache.find(data);
@@ -717,6 +717,7 @@ cldnn::primitive_id Program::CreatePrimitiveFromBlob(cldnn::topology& topology,
     auto bufSize = blobLayout.bytes_count();
 
     const auto descLayout = pBlob->getTensorDesc().getLayout();
+    std::cout << "descLayout " << descLayout << std::endl;
     if ((descLayout != InferenceEngine::OIHW) &&
         (descLayout != InferenceEngine::GOIHW) &&
         (descLayout != InferenceEngine::OIDHW) &&
@@ -782,6 +783,7 @@ void Program::CreateWeightAndBiasPrimitives(cldnn::topology& topology,
     cldnn::tensor::value_type inFeatures = 1;  // todo: workaround for xyf input, handle general case (xf, xyzf etc...)
     std::shared_ptr<Data> insData0 = layer->insData[0].lock();
     IE_ASSERT(insData0 != nullptr);
+    std::cout << "CreateWeightAndBiasPrimitives ----+" << std::endl;
     const auto in0dims = insData0->getTensorDesc().getDims();
     if (in0dims.size() > 1) {
         inFeatures = TensorValue(in0dims[1]);
@@ -937,7 +939,7 @@ void Program::CreateWeightAndBiasPrimitives(cldnn::topology& topology,
         cldnn::layout biasesLayout = cldnn::layout(
             DataTypeFromPrecision(pBiasBlob->getTensorDesc().getPrecision()),
             FormatFromLayout(pBiasBlob->getTensorDesc().getLayout()),
-            (cldnn::tensor) cldnn::feature(TensorValue(outFeatures)));
+            (cldnn::tensor) cldnn::batch(TensorValue(outFeatures)));
         cldnn::primitive_id biasID = layer_type_name_ID(layer) + m_biasesTag;
         biasID = CreatePrimitiveFromBlob(topology,
                                          biasID,
@@ -961,6 +963,7 @@ void Program::CreateBinaryWeightAndBiasPrimitives(cldnn::topology& topology,
     cldnn::tensor::value_type inFeatures = 1;  // todo: workaround for xyf input, handle general case (xf, xyzf etc...)
     std::shared_ptr<Data> insData0 = layer->insData[0].lock();
     IE_ASSERT(insData0 != nullptr);
+    std::cout << "CreateBinaryWeightAndBiasPrimitives ----+\n";
     const auto in0dims = insData0->getTensorDesc().getDims();
     if (in0dims.size() > 1) {
         inFeatures = TensorValue(in0dims[1]);
@@ -1036,7 +1039,7 @@ void Program::CreateScaleWeightsAndBiasesFromBN(cldnn::topology& topology,
             THROW_CLDNN_EXCEPTION("mean/variance precision mismatch in " << bnLayer->name);
         }
     }
-
+    std::cout << "CreateScaleWeightsAndBiasesFromBN -----+\n";
     cldnn::tensor blobTensor(0);
     auto outDims = bnLayer->outData[0]->getTensorDesc().getDims();
     if (outDims.size() != 2 && outDims.size() != 4) {
@@ -1108,6 +1111,7 @@ void Program::CreateScaleWeightsAndBiasesFromBN(cldnn::topology& topology,
 void Program::CreateSingleLayerPrimitive(cldnn::topology& topology, InferenceEngine::CNNLayerPtr &layer) {
     // Initialize a profiling entry
     InitProfileInfo(layer->name, layer->type);
+    std::cout << layer->name << std::endl;
 
     // First check for custom layer
     auto customLayer = m_config.customLayers.find(layer->type);
@@ -2273,10 +2277,13 @@ inline cldnn::concatenation::concatenation_axis ConcatAxisFromIEAxis(unsigned ax
         auto spatial_size = std::max(sz, 4u) - 2;
         cldnn_axis = spatial_size - spatial_axis - 1 + 2;
     }
+    std::cout << "ConcatAxisFromIEAxis --------+" << std::endl;
+    std::cout << "axis cldnn_axis " << axis << " " << cldnn_axis << std::endl;
 
     switch (cldnn_axis) {
         case 0:
             return cldnn::concatenation::concatenation_axis::along_b;
+            //return cldnn::concatenation::concatenation_axis::along_f;
         case 1:
             return cldnn::concatenation::concatenation_axis::along_f;
         case 2:
@@ -3471,7 +3478,11 @@ void Program::AddConstantBlobInput(cldnn::topology& topology, InferenceEngine::C
         THROW_IE_EXCEPTION << "No blobs found in const layer " << layer->name;
     auto constBlob = layer->blobs.begin()->second;
     SizeVector constDims(layer->outData[0]->getTensorDesc().getDims());
-
+    std::cout << "AddConstantBlobInput ---------+"<< std::endl;
+    std::cout << "constDims.size() " << constDims.size() << std::endl;
+    const auto constDesc = layer->outData[0]->getTensorDesc();
+    Layout l = constDesc.getLayout();
+    std::cout << "layout " << l << std::endl;
     cldnn::tensor constTensor;
     switch (constDims.size()) {
     case 6: constTensor = cldnn::tensor(TensorValue(constDims[0]), TensorValue(constDims[1]),
@@ -3489,7 +3500,7 @@ void Program::AddConstantBlobInput(cldnn::topology& topology, InferenceEngine::C
         break;
     case 2: constTensor = cldnn::tensor(TensorValue(constDims[0]), TensorValue(constDims[1]), 1, 1);
         break;
-    case 1: constTensor = cldnn::tensor(1, TensorValue(constDims[0]), 1, 1);
+    case 1: constTensor = cldnn::tensor(TensorValue(constDims[0]), 1, 1, 1);
         break;
     case 0:
         if (constBlob->size() != 1)
@@ -4875,6 +4886,16 @@ void Program::AddInputPrimitive(cldnn::topology& topology, InputInfo::Ptr inputI
     cldnn::tensor::value_type batch = (m_max_batch <= 1)
                                       ? (inputDims.size() > 3 ? TensorValue(inputDims[0]) : 1)
                                       : TensorValue(m_curBatch);
+    std::cout << "Program::AddInputPrimitive -----+" << std::endl;
+    std::cout << "inputName " << inputName << std::endl;
+    std::cout << "batch " << batch << std::endl;
+    std::cout << "inputDims.size() " << inputDims.size() << std::endl;
+    std::cout << "inputDims[0] " << inputDims[0] << std::endl;
+    if (inputDims.size() > 1) std::cout << "inputDims[1] " << inputDims[1] << std::endl;
+    if (inputDims.size() > 2) std::cout << "inputDims[2] " << inputDims[2] << std::endl;
+    std::cout << "layout " << l << std::endl;
+    std::cout << "inputFormat " << inputFormat.order() << std::endl;
+
     switch (inputDims.size()) {
     case 6:
         dataTensor = cldnn::tensor(cldnn::batch(batch),
@@ -4916,7 +4937,11 @@ void Program::AddInputPrimitive(cldnn::topology& topology, InputInfo::Ptr inputI
         }
         break;
     case 1:
-        dataTensor = cldnn::tensor(TensorValue(inputDims[0]), 1, 1, 1);
+        if (0&& batch == 1) {
+            dataTensor = cldnn::tensor(1, TensorValue(inputDims[0]), 1, 1);
+        } else {
+            dataTensor = cldnn::tensor(TensorValue(inputDims[0]), 1, 1, 1);
+        }
         break;
     case 0:
         dataTensor = cldnn::tensor(1, 1, 1, 1);

@@ -83,11 +83,23 @@ concatenation_inst::typed_primitive_inst(network_impl& network, concatenation_no
     auto input_layout = node.input().get_output_layout();
     auto output_layout = node.get_output_layout();
 
+    std::cout << "concatenation_inst::typed_primitive_inst---------+"<< std::endl;
+    std::cout << "input " << node.input().id() << std::endl;
+    std::cout << "input_layout " << input_layout.format.order() << std::endl;
+    std::cout << "output/node_layout " << output_layout.format.order() << std::endl;
+    std::cout << "output/node " << node.id() << std::endl;
+
+    std::cout << node.type()->to_string(node);
+    std::cout << "conact along " << node.get_primitive()->axis << std::endl;
+
     tensor::value_type concat_count = 0;
     auto input_size = input_layout.size;
     auto output_size = output_layout.size;
     for (const auto& i : node.get_dependencies()) {
+        std::cout << "dep "<< i->id() << std::endl;
         auto input_i_layout = i->get_output_layout();
+        std::cout << "input_i_layout " <<  input_i_layout.format.order() << std::endl;
+        std::cout << i->type()->to_string(*i);
         auto input_mem_size = input_i_layout.size;
         for (int dim = concatenation::along_b; dim <= concatenation::along_w; ++dim) {
             if (dim == node.get_primitive()->axis) {
@@ -98,7 +110,7 @@ concatenation_inst::typed_primitive_inst(network_impl& network, concatenation_no
                                       input_size.raw[dim],
                                       "input memory dim: " + std::to_string(dim),
                                       input_mem_size.raw[dim],
-                                      "Every input must have the same size");
+                                      "Every input must have the same size " + i->id());
             }
         }
     }
